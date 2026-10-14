@@ -1,5 +1,14 @@
 name: terminal-rescue
 
+# Los valores salen de .env (cp .env.example .env). Cada variable tiene un valor por defecto
+# para que el entorno tambien levante desde una copia limpia en la que todavia no existe .env.
+x-conexion-base: &conexion-base
+  DATABASE_HOST: ${DATABASE_HOST:-cierre-db}
+  DATABASE_PORT: ${DATABASE_PORT:-5432}
+  DATABASE_NAME: ${DATABASE_NAME:-cierre}
+  DATABASE_USER: ${DATABASE_USER:-cierre}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:-cierre}
+
 services:
   cierre-db:
     image: postgres:16-alpine
@@ -12,26 +21,34 @@ services:
       - ./data:/data:ro
       - cierre-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Por TCP: durante la carga inicial PostgreSQL solo escucha por socket, asi que la base
+      # queda "healthy" cuando ya termino de cargar y corregir los datos de db/init.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
       timeout: 3s
-      retries: 30
+      retries: 40
+    restart: unless-stopped
 
   cierre-api:
     build: ./services/api
-    env_file: .env
+    environment:
+      <<: *conexion-base
     ports:
       - "${API_PORT:-8081}:8081"
     depends_on:
       cierre-db:
         condition: service_healthy
+    restart: unless-stopped
 
   cierre-worker:
     build: ./services/worker
-    env_file: .env
+    environment:
+      <<: *conexion-base
+      WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-30}
     depends_on:
       cierre-db:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   cierre-db-data:
