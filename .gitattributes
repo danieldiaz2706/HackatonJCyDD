@@ -1,0 +1,8 @@
+# Los scripts corren en Linux: todo archivo de texto se guarda con fin de linea LF,
+# aunque el commit se haga desde Windows (un "\r" rompe bash: "$'\r': command not found").
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.pdf  binary
