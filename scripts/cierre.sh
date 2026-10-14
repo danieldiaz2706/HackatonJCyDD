@@ -1,35 +1,68 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Cierre mensual de afiliados activos (script heredado de Operaciones).
-# Autor original: equipo de sistemas 2019. Última modificación: "temporal".
+# Cierre mensual de afiliados activos (script heredado de Operaciones, reparado).
+#
+# Cambios frente al script de 2019:
+#   - Lee la entrada de data/ del repositorio (antes /opt/cierre/entrada, que no existe).
+#   - Ya no mueve AFI_MAE.csv a procesados/: la entrada no se destruye y el cierre es repetible.
+#   - output/ se crea con mkdir -p y cada archivo se reescribe completo (antes se agregaba con >>).
+#   - Las reglas del cierre (empresa, beneficiarios, aportes, excepciones, fechas y cruce con
+#     Caja Oriente) estan en scripts/cierre.py; aqui se calcula ademas output/top_error.txt.
+#
+# Variables opcionales: CIERRE_ENTRADA, CIERRE_SALIDA, CIERRE_LOGS, CIERRE_CONTROL, PYTHON.
 # ---------------------------------------------------------------------------
-set -e
+set -euo pipefail
+cd "$(dirname "$0")/.."
 
-ENTRADA=/opt/cierre/entrada
-SALIDA=output
+ENTRADA="${CIERRE_ENTRADA:-data}"
+SALIDA="${CIERRE_SALIDA:-output}"
+LOGS="${CIERRE_LOGS:-logs}"
+CONTROL="${CIERRE_CONTROL:-control/hoja_control.csv}"
 
-mkdir $SALIDA
+# python3 en Linux; en Git Bash (Windows) a veces solo existe "python".
+PYTHON="${PYTHON:-}"
+if [ -z "$PYTHON" ]; then
+    for candidato in python3 python; do
+        if command -v "$candidato" >/dev/null 2>&1 \
+            && "$candidato" -c 'import sys; sys.exit(sys.version_info < (3, 6))' >/dev/null 2>&1; then
+            PYTHON="$candidato"
+            break
+        fi
+    done
+fi
+if [ -z "$PYTHON" ]; then
+    echo "ERROR: se necesita Python 3.6 o superior (python3)" >&2
+    exit 1
+fi
 
-echo "Leyendo afiliados desde $ENTRADA/AFI_MAE.csv"
+for archivo in AFI_MAE.csv AFI_BEN.csv APORTES.csv EMPRESA.csv extracto_caja_oriente.csv; do
+    if [ ! -r "$ENTRADA/$archivo" ]; then
+        echo "ERROR: no se puede leer $ENTRADA/$archivo (revise la ruta y los permisos)" >&2
+        exit 1
+    fi
+done
+mkdir -p "$SALIDA"
 
-# Archivo de activos para Subsidios
-echo "documento,nombre,estado,cod_empresa,empresa,beneficiarios,ultimo_aporte" > $SALIDA/afiliados_activos.csv
-awk -F',' 'NR > 1 && $7 == "A" { print $1 "," $3 " " $4 " " $5 " " $6 ",ACTIVO," $8 ",,0," }' \
-    $ENTRADA/AFI_MAE.csv >> $SALIDA/afiliados_activos.csv
+echo ">> Cierre de afiliados desde $ENTRADA/"
+"$PYTHON" scripts/cierre.py --entrada "$ENTRADA" --salida "$SALIDA" --control "$CONTROL"
 
-# TODO: nombre de la empresa desde EMPRESA.csv
-# TODO: contar beneficiarios desde AFI_BEN.csv
-# TODO: último aporte desde APORTES.csv (YYYY-MM)
-# TODO: excepciones (lo pidió Auditoría, nunca se terminó)
-# TODO: cruce con el extracto de Caja Oriente
+echo ">> Error mas frecuente en $LOGS/"
+# Solo cuentan las lineas de nivel ERROR con codigo CIE-####; los avisos W-### no son errores.
+# Si hubiera empate gana el codigo menor, para que el resultado sea siempre el mismo.
+TOP=$(grep -hE '(^|[^A-Za-z])ERROR([^A-Za-z]|$)' "$LOGS"/*.log 2>/dev/null \
+    | grep -oE 'CIE-[0-9]{4}' \
+    | LC_ALL=C sort | uniq -c \
+    | LC_ALL=C sort -k1,1nr -k2,2 \
+    | awk 'NR == 1 { print $2, $1 }') || TOP=""
+if [ -z "$TOP" ]; then
+    echo "AVISO: no se encontraron errores CIE-#### en $LOGS/" >&2
+    TOP="NINGUNO 0"
+fi
+read -r CODIGO OCURRENCIAS <<< "$TOP"
+printf 'codigo_error=%s\nocurrencias=%s\n' "$CODIGO" "$OCURRENCIAS" > "$SALIDA/.top_error.tmp"
+mv -f "$SALIDA/.top_error.tmp" "$SALIDA/top_error.txt"
+echo "codigo_error=$CODIGO ocurrencias=$OCURRENCIAS"
 
-TOTAL=$(tail -n +2 $ENTRADA/AFI_MAE.csv | wc -l)
-ACTIVOS=$(tail -n +2 $SALIDA/afiliados_activos.csv | wc -l)
-echo "total_afiliados=$TOTAL" >> $SALIDA/totales.txt
-echo "activos=$ACTIVOS" >> $SALIDA/totales.txt
-
-# El archivo de entrada ya fue procesado
-mkdir -p $ENTRADA/procesados
-mv $ENTRADA/AFI_MAE.csv $ENTRADA/procesados/
-
+echo ">> Archivos generados en $SALIDA/"
+wc -l "$SALIDA/afiliados_activos.csv" "$SALIDA/excepciones.csv" "$SALIDA/totales.txt" "$SALIDA/top_error.txt"
 echo "Cierre terminado"
