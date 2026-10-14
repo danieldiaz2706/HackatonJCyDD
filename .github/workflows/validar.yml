@@ -1,0 +1,54 @@
+# En cada push hace lo mismo que el calificador: levanta el entorno desde una copia limpia
+# en Linux, corre el validador, prueba que el cierre es repetible tras ./reset.sh y revisa
+# los entregables. Si algo se rompe, la marca del commit en GitHub queda en rojo.
+name: Validar entorno
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scripts con permiso de ejecucion guardado en Git (100755)
+        run: |
+          git ls-files -s run.sh reset.sh validator 'scripts/*.sh' \
+            | awk '{ print } $1 != "100755" { print "SIN PERMISO DE EJECUCION:", $4; mal = 1 } END { exit mal }'
+
+      - name: Levantar desde cero, sin .env (copia limpia)
+        run: docker compose up -d --build
+
+      - name: Esperar a la API
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8081/health && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Validador del kit (pruebas publicas)
+        run: |
+          ./validator check | tee /tmp/validator.txt
+          grep -q 'PRUEBAS: 10 / 10' /tmp/validator.txt
+
+      - name: Repetibilidad despues de ./reset.sh
+        run: |
+          ./run.sh > /dev/null && sha256sum output/* | tee /tmp/antes.sha
+          ./reset.sh
+          ./run.sh > /dev/null && sha256sum output/* | tee /tmp/despues.sha
+          diff /tmp/antes.sha /tmp/despues.sha
+
+      - name: Entregables (mismas reglas del calificador)
+        run: ./validator entregables
+
+      - name: Estado y logs si algo fallo
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail 60
