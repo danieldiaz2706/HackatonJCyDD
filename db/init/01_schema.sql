@@ -17,7 +17,10 @@ CREATE TABLE afi_mae (
     ape2     TEXT,
     est_afi  TEXT,
     cod_emp  TEXT,
-    fec_afi  TEXT
+    fec_afi  TEXT,
+    -- Orden de llegada del registro en AFI_MAE.csv: define cuál es la "primera aparición"
+    -- de un documento repetido (regla 1 del cierre).
+    id_carga BIGINT GENERATED ALWAYS AS IDENTITY
 );
 
 CREATE TABLE afi_ben (
