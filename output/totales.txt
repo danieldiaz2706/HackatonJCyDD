@@ -1,0 +1,4 @@
+total_afiliados=1500
+activos=1194
+inactivos=274
+excepciones=104

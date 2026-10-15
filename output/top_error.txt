@@ -1,0 +1,2 @@
+codigo_error=CIE-4012
+ocurrencias=1424
