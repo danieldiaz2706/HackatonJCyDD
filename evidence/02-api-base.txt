@@ -1,0 +1,47 @@
+Incidente 2 - La API no conecta a la base
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/1098765432
+{"error": "base de datos no disponible"}
+HTTP 503
+[codigo de salida: 0]
+
+$ docker compose -p kit-original logs cierre-api | grep 'CIE-2210' | tail -n 2
+cierre-api-1  | 2026-10-15 02:18:11,427 ERROR [cierre-api] CIE-2210 No hay conexión con la base de datos: could not translate host name "cierre-database" to address: Name or service not known
+[codigo de salida: 0]
+
+$ grep -n DATABASE_HOST .env.example
+7:DATABASE_HOST=cierre-database
+[codigo de salida: 0]
+
+$ docker compose -p kit-original config --services
+cierre-db
+cierre-api
+cierre-worker
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ grep -n DATABASE_HOST .env.example docker-compose.yml
+.env.example:9:# DATABASE_HOST es el NOMBRE DEL SERVICIO en docker-compose.yml (cierre-db), no localhost.
+.env.example:10:DATABASE_HOST=cierre-db
+docker-compose.yml:6:  DATABASE_HOST: ${DATABASE_HOST:-cierre-db}
+[codigo de salida: 0]
+
+$ docker compose exec -T cierre-api python -c "import os; print('DATABASE_HOST =', os.environ['DATABASE_HOST'])"
+DATABASE_HOST = cierre-db
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/1098765432
+{"documento": "1098765432", "nombre": "JUAN CARLOS PEREZ GOMEZ", "estado": "ACTIVO", "empresa": "EMPRESA ABC"}
+HTTP 200
+[codigo de salida: 0]
+
+$ docker compose logs cierre-api | tail -n 3
+cierre-api-1  | 2026-10-15 02:18:41,016 INFO [cierre-api] cierre-api escuchando en el puerto 8081 (base: cierre-db)
+cierre-api-1  | 2026-10-15 02:19:21,725 INFO [cierre-api] GET /afiliados/1098765432 200
+[codigo de salida: 0]
+

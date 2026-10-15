@@ -1,0 +1,80 @@
+Incidente 10 - El cierre solo funciona una vez
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: script heredado del kit (commit 3020dec7) con ENTRADA=data (solo el arreglo de ruta del incidente 3), ejecutado dos veces ====
+
+$ sed -i 's#^ENTRADA=.*#ENTRADA=data#' scripts/cierre.sh && grep -n '^ENTRADA=' scripts/cierre.sh
+8:ENTRADA=data
+[codigo de salida: 0]
+
+$ bash scripts/cierre.sh
+Leyendo afiliados desde data/AFI_MAE.csv
+Cierre terminado
+[codigo de salida: 0]
+
+$ ls data/ data/procesados/
+data/:
+AFI_BEN.csv
+APORTES.csv
+EMPRESA.csv
+extracto_caja_oriente.csv
+procesados
+
+data/procesados/:
+AFI_MAE.csv
+[codigo de salida: 0]
+
+$ bash scripts/cierre.sh
+mkdir: cannot create directory ‘output’: File exists
+[codigo de salida: 1]
+
+$ git status --short data/
+ D data/AFI_MAE.csv
+?? data/procesados/
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ ./run.sh > /dev/null && sha256sum output/* | tee /tmp/ejecucion1.sha
+2b533c99ec01918a60a7ce2f1795eb64c4acf5a82c01e88c583247175f1e9341  output/afiliados_activos.csv
+9abc175420a4c59a342f8111227efd77cdecdd2a7bce5b6d4191c24aae1dc4e6  output/excepciones.csv
+be92aa0328bd49cfa0d6157537090e3e39ddb66061663b8893e4c93c5b40869a  output/top_error.txt
+7674ec35ee1b7ce77af19f414fc65f9dae907de4f713234b0d22f6d46494da4f  output/totales.txt
+[codigo de salida: 0]
+
+$ ./run.sh > /dev/null && sha256sum output/* | tee /tmp/ejecucion2.sha
+2b533c99ec01918a60a7ce2f1795eb64c4acf5a82c01e88c583247175f1e9341  output/afiliados_activos.csv
+9abc175420a4c59a342f8111227efd77cdecdd2a7bce5b6d4191c24aae1dc4e6  output/excepciones.csv
+be92aa0328bd49cfa0d6157537090e3e39ddb66061663b8893e4c93c5b40869a  output/top_error.txt
+7674ec35ee1b7ce77af19f414fc65f9dae907de4f713234b0d22f6d46494da4f  output/totales.txt
+[codigo de salida: 0]
+
+$ diff /tmp/ejecucion1.sha /tmp/ejecucion2.sha && echo 'IDENTICAS: dos ejecuciones seguidas'
+IDENTICAS: dos ejecuciones seguidas
+[codigo de salida: 0]
+
+$ ./reset.sh 2>&1 | tail -n 6
+ Container terminal-rescue-cierre-worker-1  Started
+ Container terminal-rescue-cierre-api-1  Started
+NAME                              IMAGE                           COMMAND                  SERVICE         CREATED         STATUS                   PORTS
+terminal-rescue-cierre-api-1      terminal-rescue-cierre-api      "python app.py"          cierre-api      4 seconds ago   Up Less than a second    0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+terminal-rescue-cierre-db-1       postgres:16-alpine              "docker-entrypoint.s…"   cierre-db       4 seconds ago   Up 4 seconds (healthy)   5432/tcp
+terminal-rescue-cierre-worker-1   terminal-rescue-cierre-worker   "python worker.py"       cierre-worker   4 seconds ago   Up Less than a second    
+[codigo de salida: 0]
+
+$ ./run.sh > /dev/null && sha256sum output/* | tee /tmp/ejecucion3.sha
+2b533c99ec01918a60a7ce2f1795eb64c4acf5a82c01e88c583247175f1e9341  output/afiliados_activos.csv
+9abc175420a4c59a342f8111227efd77cdecdd2a7bce5b6d4191c24aae1dc4e6  output/excepciones.csv
+be92aa0328bd49cfa0d6157537090e3e39ddb66061663b8893e4c93c5b40869a  output/top_error.txt
+7674ec35ee1b7ce77af19f414fc65f9dae907de4f713234b0d22f6d46494da4f  output/totales.txt
+[codigo de salida: 0]
+
+$ diff /tmp/ejecucion1.sha /tmp/ejecucion3.sha && echo 'IDENTICAS: tambien despues de ./reset.sh'
+IDENTICAS: tambien despues de ./reset.sh
+[codigo de salida: 0]
+
+$ git status --short data/ && echo 'data/ sin cambios'
+data/ sin cambios
+[codigo de salida: 0]
+

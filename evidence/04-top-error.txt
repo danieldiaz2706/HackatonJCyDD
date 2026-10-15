@@ -1,0 +1,50 @@
+Incidente 4 - Miles de lineas de log: error mas frecuente
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ wc -l logs/*.log
+  4656 logs/api.log
+  2981 logs/database.log
+  3878 logs/worker.log
+ 11515 total
+[codigo de salida: 0]
+
+$ grep -c ERROR logs/api.log logs/worker.log logs/database.log
+logs/api.log:1056
+logs/worker.log:1678
+logs/database.log:381
+[codigo de salida: 0]
+
+$ ls output/top_error.txt
+ls: cannot access 'output/top_error.txt': No such file or directory
+[codigo de salida: 2]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ grep -hE '(^|[^A-Za-z])ERROR([^A-Za-z]|$)' logs/*.log | grep -oE 'CIE-[0-9]{4}' | sort | uniq -c | sort -k1,1nr
+   1424 CIE-4012
+    700 CIE-5003
+    460 CIE-2210
+    298 CIE-3301
+    158 CIE-1107
+     75 CIE-6020
+[codigo de salida: 0]
+
+$ grep -c 'CIE-4012' logs/api.log logs/worker.log logs/database.log
+logs/api.log:356
+logs/worker.log:1068
+logs/database.log:0
+[codigo de salida: 0]
+
+$ grep -ohE 'W-[0-9]+' logs/*.log | sort | uniq -c
+    244 W-120
+    420 W-301
+[codigo de salida: 0]
+
+$ cat output/top_error.txt
+codigo_error=CIE-4012
+ocurrencias=1424
+[codigo de salida: 0]
+

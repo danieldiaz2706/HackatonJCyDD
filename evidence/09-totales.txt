@@ -1,0 +1,46 @@
+Incidente 9 - Totales que no cuadran
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: totales que dejo la primera ejecucion del script heredado ====
+
+$ cat output/totales.txt
+total_afiliados=1520
+activos=1225
+[codigo de salida: 0]
+
+$ cat control/hoja_control.csv
+clave,valor
+fecha_corte,2026-09-30
+total_afiliados,1500
+activos,1194
+inactivos,274
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ cat output/totales.txt
+total_afiliados=1500
+activos=1194
+inactivos=274
+excepciones=104
+[codigo de salida: 0]
+
+$ cat control/hoja_control.csv
+clave,valor
+fecha_corte,2026-09-30
+total_afiliados,1500
+activos,1194
+inactivos,274
+[codigo de salida: 0]
+
+$ for k in total_afiliados activos inactivos; do printf '%-16s cierre=%-6s control=%s\n' $k $(grep "^$k=" output/totales.txt | cut -d= -f2) $(grep "^$k," control/hoja_control.csv | cut -d, -f2); done
+total_afiliados  cierre=1500   control=1500
+activos          cierre=1194   control=1194
+inactivos        cierre=274    control=274
+[codigo de salida: 0]
+
+$ tail -n +2 output/excepciones.csv | wc -l
+104
+[codigo de salida: 0]
+

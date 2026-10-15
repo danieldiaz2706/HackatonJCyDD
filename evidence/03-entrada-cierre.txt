@@ -1,0 +1,90 @@
+Incidente 3 - El script de cierre no lee su archivo de entrada
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ git ls-files -s run.sh scripts/cierre.sh
+100755 ae59c76bc912ddc1938f01cb738907ed66702773 0	run.sh
+100644 554ebb5cd22a159047667052b219cdad42c2f171 0	scripts/cierre.sh
+[codigo de salida: 0]
+
+$ ls -l run.sh scripts/cierre.sh
+-rwxrwxrwx 1 codespace codespace  135 Oct 15 02:17 run.sh
+-rw-rw-rw- 1 codespace codespace 1351 Oct 15 02:17 scripts/cierre.sh
+[codigo de salida: 0]
+
+$ ./run.sh
+./run.sh: line 4: ./scripts/cierre.sh: Permission denied
+[codigo de salida: 126]
+
+$ grep -n '^ENTRADA=' scripts/cierre.sh
+8:ENTRADA=/opt/cierre/entrada
+[codigo de salida: 0]
+
+$ bash scripts/cierre.sh
+Leyendo afiliados desde /opt/cierre/entrada/AFI_MAE.csv
+awk: fatal: cannot open file `/opt/cierre/entrada/AFI_MAE.csv' for reading (No such file or directory)
+[codigo de salida: 2]
+
+$ find . -name 'AFI_MAE.csv' -not -path './.git/*'
+./data/AFI_MAE.csv
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ chmod +x run.sh reset.sh validator scripts/*.sh && ls -l run.sh reset.sh validator scripts/
+-rwxrwxrwx  1 codespace root   631 Oct 15 00:47 reset.sh
+-rwxrwxrwx  1 codespace root   354 Oct 15 00:47 run.sh
+-rwxrwxrwx  1 codespace root 12338 Oct 15 00:47 validator
+
+scripts/:
+total 40
+-rw-rw-rw- 1 codespace root 13561 Oct 15 00:47 cierre.py
+-rwxrwxrwx 1 codespace root  2940 Oct 15 00:47 cierre.sh
+-rwxrwxrwx 1 codespace root   859 Oct 15 00:47 corregir_base.sh
+-rwxrwxrwx 1 codespace root 14120 Oct 15 00:47 evidencias.sh
+[codigo de salida: 0]
+
+$ git ls-files -s run.sh reset.sh validator scripts/
+100755 89ca91da5c92dffed62d0fed1d61f76576a6ecc4 0	reset.sh
+100755 7e8f46c59d07f5a68c12d4d1c9e14b867aafb861 0	run.sh
+100644 29575e3dd925a8059221420ea056680a871053d3 0	scripts/cierre.py
+100755 297bf47323c7def7f90b886dd3e8d2a1770ae44f 0	scripts/cierre.sh
+100755 54bc4c278b54774fd3d6f7742483df719fe7da6b 0	scripts/corregir_base.sh
+100755 c7eacb5963ac8247c529bbf96fd622303fe11d4d 0	scripts/evidencias.sh
+100755 6f31299b393fa1d05b67d66afaae3383e14da558 0	validator
+[codigo de salida: 0]
+
+$ grep -n 'ENTRADA=' scripts/cierre.sh
+17:ENTRADA="${CIERRE_ENTRADA:-data}"
+[codigo de salida: 0]
+
+$ ./run.sh
+>> Cierre de afiliados desde data/
+Registros leidos: AFI_MAE=1520 AFI_BEN=1685 APORTES=3921 EMPRESA=40 extracto=325
+Excepciones: DUPLICADO=20 CODIGO_INVALIDO=14 SIN_EMPRESA=18 FECHA_INVALIDA=12 BENEFICIARIO_HUERFANO=15 CRUCE_NO_COINCIDE=25
+Fechas normalizadas a YYYY-MM-DD: 18 (DD/MM/YYYY=9, YYYYMMDD=9)
+total_afiliados=1500  OK (control=1500)
+activos=1194  OK (control=1194)
+inactivos=274  OK (control=274)
+excepciones=104
+>> Error mas frecuente en logs/
+codigo_error=CIE-4012 ocurrencias=1424
+>> Archivos generados en output/
+  1195 output/afiliados_activos.csv
+   105 output/excepciones.csv
+     4 output/totales.txt
+     2 output/top_error.txt
+  1306 total
+Cierre terminado
+[codigo de salida: 0]
+
+$ ls -l output/
+total 120
+-rw------- 1 codespace codespace 101301 Oct 15 02:19 afiliados_activos.csv
+-rw------- 1 codespace codespace   9857 Oct 15 02:19 excepciones.csv
+-rw-rw-rw- 1 codespace codespace     39 Oct 15 02:19 top_error.txt
+-rw------- 1 codespace codespace     64 Oct 15 02:19 totales.txt
+[codigo de salida: 0]
+

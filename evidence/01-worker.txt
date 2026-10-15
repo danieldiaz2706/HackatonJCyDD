@@ -1,0 +1,59 @@
+Incidente 1 - cierre-worker en Exited (1)
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ docker compose -p kit-original ps -a
+NAME                           IMAGE                        COMMAND                  SERVICE         CREATED          STATUS                      PORTS
+kit-original-cierre-api-1      kit-original-cierre-api      "python app.py"          cierre-api      18 seconds ago   Up 10 seconds               0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+kit-original-cierre-db-1       postgres:16-alpine           "docker-entrypoint.s…"   cierre-db       18 seconds ago   Up 17 seconds (healthy)     5432/tcp
+kit-original-cierre-worker-1   kit-original-cierre-worker   "python worker.py"       cierre-worker   18 seconds ago   Exited (1) 10 seconds ago   
+[codigo de salida: 0]
+
+$ docker compose -p kit-original logs cierre-worker | tail -n 5
+cierre-worker-1  | [2026-10-15T02:18:00Z] [ERROR] codigo=CIE-1107 WORKER_INTERVAL_SECONDS debe ser un entero de segundos; valor recibido: '30s'
+[codigo de salida: 0]
+
+$ grep -n WORKER_INTERVAL_SECONDS .env.example
+17:WORKER_INTERVAL_SECONDS=30s
+[codigo de salida: 0]
+
+$ grep -c 'CIE-1107' logs/worker.log
+158
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ grep -n WORKER_INTERVAL_SECONDS .env.example docker-compose.yml
+.env.example:20:WORKER_INTERVAL_SECONDS=30
+docker-compose.yml:47:      WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-30}
+[codigo de salida: 0]
+
+$ docker compose ps
+NAME                              IMAGE                           COMMAND                  SERVICE         CREATED          STATUS                   PORTS
+terminal-rescue-cierre-api-1      terminal-rescue-cierre-api      "python app.py"          cierre-api      10 seconds ago   Up 5 seconds             0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+terminal-rescue-cierre-db-1       postgres:16-alpine              "docker-entrypoint.s…"   cierre-db       10 seconds ago   Up 9 seconds (healthy)   5432/tcp
+terminal-rescue-cierre-worker-1   terminal-rescue-cierre-worker   "python worker.py"       cierre-worker   10 seconds ago   Up 5 seconds             
+[codigo de salida: 0]
+
+$ docker compose logs cierre-worker | tail -n 3
+cierre-worker-1  | [2026-10-15T02:18:40Z] [INFO] cierre-worker iniciado; intervalo=30s
+cierre-worker-1  | [2026-10-15T02:18:40Z] [INFO] conciliacion registros=1500 documentos_distintos=1500
+[codigo de salida: 0]
+
+# 35 segundos despues (mas de un intervalo del worker):
+
+$ docker compose ps
+NAME                              IMAGE                           COMMAND                  SERVICE         CREATED          STATUS                    PORTS
+terminal-rescue-cierre-api-1      terminal-rescue-cierre-api      "python app.py"          cierre-api      45 seconds ago   Up 40 seconds             0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+terminal-rescue-cierre-db-1       postgres:16-alpine              "docker-entrypoint.s…"   cierre-db       45 seconds ago   Up 44 seconds (healthy)   5432/tcp
+terminal-rescue-cierre-worker-1   terminal-rescue-cierre-worker   "python worker.py"       cierre-worker   45 seconds ago   Up 40 seconds             
+[codigo de salida: 0]
+
+$ docker inspect -f '{{.Name}} estado={{.State.Status}} reinicios={{.RestartCount}}' $(docker compose ps -q)
+/terminal-rescue-cierre-api-1 estado=running reinicios=0
+/terminal-rescue-cierre-db-1 estado=running reinicios=0
+/terminal-rescue-cierre-worker-1 estado=running reinicios=0
+[codigo de salida: 0]
+

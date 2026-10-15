@@ -1,0 +1,65 @@
+Incidente 8 - Extracto de Caja Oriente con otras columnas
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ head -n 3 data/extracto_caja_oriente.csv
+id_afiliado;nombres_apellidos;situacion;fecha_reporte
+000013022985;DANIELA LOPEZ OCHOA;VIGENTE;30/09/2026
+000013664691;VALENTINA DUARTE DIAZ;VIGENTE;30/09/2026
+[codigo de salida: 0]
+
+$ head -n 3 data/AFI_MAE.csv
+NRO_DOC,TIP_DOC,NOM1,NOM2,APE1,APE2,EST_AFI,COD_EMP,FEC_AFI
+1391336430,CC,OSCAR,CARLOS,VILLAMIZAR,OCHOA,A,1002,2026-04-16
+6013096362,CC,GLORIA,OSCAR,GOMEZ,CASTELLANOS,A,1033,2018-07-29
+[codigo de salida: 0]
+
+$ grep -n 'TODO' scripts/cierre.sh
+20:# TODO: nombre de la empresa desde EMPRESA.csv
+21:# TODO: contar beneficiarios desde AFI_BEN.csv
+22:# TODO: último aporte desde APORTES.csv (YYYY-MM)
+23:# TODO: excepciones (lo pidió Auditoría, nunca se terminó)
+24:# TODO: cruce con el extracto de Caja Oriente
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ head -n 3 data/extracto_caja_oriente.csv
+id_afiliado;nombres_apellidos;situacion;fecha_reporte
+000013022985;DANIELA LOPEZ OCHOA;VIGENTE;30/09/2026
+000013664691;VALENTINA DUARTE DIAZ;VIGENTE;30/09/2026
+[codigo de salida: 0]
+
+$ sed -n '2,4p' data/extracto_caja_oriente.csv | awk -F';' '{ d = $1; sub(/^0+/, "", d); print $1 " -> " d " (" $3 ")" }'
+000013022985 -> 13022985 (VIGENTE)
+000013664691 -> 13664691 (VIGENTE)
+008811551262 -> 8811551262 (RETIRADO)
+[codigo de salida: 0]
+
+$ grep -c 'CRUCE_NO_COINCIDE' output/excepciones.csv
+25
+[codigo de salida: 0]
+
+$ grep 'CRUCE_NO_COINCIDE' output/excepciones.csv | head -n 8
+6060554836,CRUCE_NO_COINCIDE,Caja Oriente reporta RETIRADO y en AFI_MAE esta ACTIVO (EST_AFI='A')
+1008958781,CRUCE_NO_COINCIDE,Caja Oriente reporta RETIRADO y en AFI_MAE esta ACTIVO (EST_AFI='A')
+1002471016,CRUCE_NO_COINCIDE,id_afiliado=001002471016 de Caja Oriente no existe en AFI_MAE
+60638164,CRUCE_NO_COINCIDE,Caja Oriente reporta RETIRADO y en AFI_MAE esta ACTIVO (EST_AFI='A')
+1043196119,CRUCE_NO_COINCIDE,id_afiliado=001043196119 de Caja Oriente no existe en AFI_MAE
+3741495054,CRUCE_NO_COINCIDE,Caja Oriente reporta VIGENTE y en AFI_MAE esta INACTIVO (EST_AFI='I')
+1027394279,CRUCE_NO_COINCIDE,id_afiliado=001027394279 de Caja Oriente no existe en AFI_MAE
+3739675472,CRUCE_NO_COINCIDE,Caja Oriente reporta VIGENTE y en AFI_MAE esta INACTIVO (EST_AFI='I')
+[codigo de salida: 0]
+
+$ head -n 1 output/afiliados_activos.csv
+documento,nombre,estado,cod_empresa,empresa,beneficiarios,ultimo_aporte
+[codigo de salida: 0]
+
+$ sed -n '2,4p' output/afiliados_activos.csv
+1391336430,OSCAR CARLOS VILLAMIZAR OCHOA,ACTIVO,1002,CONSTRUCTORA SAN LUIS S EN C,2,2026-08
+6013096362,GLORIA OSCAR GOMEZ CASTELLANOS,ACTIVO,1033,COMERCIALIZADORA ANDINA LTDA,2,
+13965503,DANIELA CAMILO MOLINA SILVA,ACTIVO,1000,EMPRESA ABC,0,2026-01
+[codigo de salida: 0]
+

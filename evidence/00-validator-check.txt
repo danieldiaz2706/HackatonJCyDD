@@ -1,0 +1,18 @@
+========================================
+       TERMINAL RESCUE VALIDATOR
+========================================
+T01 Servicios arriba ........ PASS     +25
+T02 API conectada ........... PASS     +25
+T03 Entrada del cierre ...... PASS     +25
+T04 Error mas frecuente ..... PASS     +50
+T05 Calidad de datos ........ PASS     +75
+T06 Consulta de afiliado .... PASS     +75
+T07 Fechas .................. PASS     +50
+T08 Cruce Caja Oriente ...... PASS    +100
+T09 Totales ................. PASS    +100
+T10 Repetibilidad ........... PASS    +100
+----------------------------------------
+PRUEBAS: 10 / 10   PUNTOS: 625 / 625
+
+  T09: La clave 'excepciones' se valida contra el control oculto del calificador oficial
+  T10: Segunda ejecución idéntica (el oficial también prueba tras ./reset.sh)

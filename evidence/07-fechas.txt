@@ -1,0 +1,85 @@
+Incidente 7 - Fechas en formatos que el cierre no entiende
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ grep -c 'CIE-3301' logs/worker.log
+298
+[codigo de salida: 0]
+
+$ awk -F, 'NR > 1 && $9 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { print $9 }' data/AFI_MAE.csv | sed -E 's/[0-9]/9/g' | sort | uniq -c | sort -rn
+     11 99999999
+     11 99/99/9999
+      2 SIN FECHA
+      1 N/A
+      1 9999/99/99
+      1 99-99-9999
+[codigo de salida: 0]
+
+$ awk -F, 'NR > 1 && $9 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { print $1 "," $9 }' data/AFI_MAE.csv | head -n 8
+13965503,01/07/2017
+88261956,16/01/2012
+3751473273,24/04/2012
+8867525906,03/08/2025
+6025635399,01/09/2020
+1052051148,31/13/2024
+37354788,05/04/2016
+3757045739,00000000
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ grep FECHA_INVALIDA output/excepciones.csv
+1044259063,FECHA_INVALIDA,FEC_AFI='2025-02-30' no es una fecha real; el afiliado se conserva en los totales
+8830134354,FECHA_INVALIDA,FEC_AFI='2025-02-30' no es una fecha real; el afiliado se conserva en los totales
+1052051148,FECHA_INVALIDA,FEC_AFI='31/13/2024' no es una fecha real; el afiliado se conserva en los totales
+3757045739,FECHA_INVALIDA,FEC_AFI='00000000' no es una fecha real; el afiliado se conserva en los totales
+1058468350,FECHA_INVALIDA,FEC_AFI='SIN FECHA' no es una fecha real; el afiliado se conserva en los totales
+3709342692,FECHA_INVALIDA,FEC_AFI='2024-00-10' no es una fecha real; el afiliado se conserva en los totales
+6089354914,FECHA_INVALIDA,FEC_AFI='31/13/2024' no es una fecha real; el afiliado se conserva en los totales
+60692566,FECHA_INVALIDA,FEC_AFI='SIN FECHA' no es una fecha real; el afiliado se conserva en los totales
+8874391659,FECHA_INVALIDA,FEC_AFI='00000000' no es una fecha real; el afiliado se conserva en los totales
+6026309765,FECHA_INVALIDA,FEC_AFI='N/A' no es una fecha real; el afiliado se conserva en los totales
+8803649849,FECHA_INVALIDA,FEC_AFI='2023/02/29' no es una fecha real; el afiliado se conserva en los totales
+60087263,FECHA_INVALIDA,FEC_AFI='15-15-2019' no es una fecha real; el afiliado se conserva en los totales
+[codigo de salida: 0]
+
+$ docker compose exec -T cierre-db psql -U cierre -d cierre -c "SELECT documento, valor_anterior, valor_nuevo FROM correcciones WHERE tipo = 'FECHA_NORMALIZADA' ORDER BY id"
+ documento  | valor_anterior | valor_nuevo 
+------------+----------------+-------------
+ 13965503   | 01/07/2017     | 2017-07-01
+ 88261956   | 16/01/2012     | 2012-01-16
+ 3751473273 | 24/04/2012     | 2012-04-24
+ 8867525906 | 03/08/2025     | 2025-08-03
+ 6025635399 | 01/09/2020     | 2020-09-01
+ 37354788   | 05/04/2016     | 2016-04-05
+ 13160996   | 20100915       | 2010-09-15
+ 3794256776 | 20140412       | 2014-04-12
+ 8816287637 | 20200611       | 2020-06-11
+ 8853478971 | 20150622       | 2015-06-22
+ 1333995086 | 07/11/2012     | 2012-11-07
+ 8887622058 | 20211002       | 2021-10-02
+ 3718603208 | 30/08/2023     | 2023-08-30
+ 1013528826 | 27/11/2009     | 2009-11-27
+ 1010631973 | 20100210       | 2010-02-10
+ 1006623345 | 20191205       | 2019-12-05
+ 1089064373 | 20110508       | 2011-05-08
+ 6000574164 | 20180505       | 2018-05-05
+(18 rows)
+
+[codigo de salida: 0]
+
+$ ./run.sh | grep -i 'fechas'
+Fechas normalizadas a YYYY-MM-DD: 18 (DD/MM/YYYY=9, YYYYMMDD=9)
+[codigo de salida: 0]
+
+$ awk -F, 'NR == FNR { if ($2 == "FECHA_INVALIDA") f[$1] = 1; next } FNR > 1 && ($1 in f) && !($1 in visto) { visto[$1] = 1; e[$7]++ } END { for (k in e) print "EST_AFI=" k ": " e[k] " afiliados con FECHA_INVALIDA (siguen contados en los totales)" }' output/excepciones.csv data/AFI_MAE.csv
+EST_AFI=A: 12 afiliados con FECHA_INVALIDA (siguen contados en los totales)
+[codigo de salida: 0]
+
+$ grep -c 'FECHA_INVALIDA' output/excepciones.csv && grep total_afiliados output/totales.txt
+12
+total_afiliados=1500
+[codigo de salida: 0]
+

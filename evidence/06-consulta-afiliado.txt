@@ -1,0 +1,95 @@
+Incidente 6 - La consulta del afiliado responde 500
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7) con DATABASE_HOST ya corregido en .env (solo el arreglo del incidente 2) ====
+
+$ sed -i 's/^DATABASE_HOST=.*/DATABASE_HOST=cierre-db/' .env && grep -n '^DATABASE_HOST=' .env
+7:DATABASE_HOST=cierre-db
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/3756530718
+{"error": "error interno"}
+HTTP 500
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/88121168
+{"error": "error interno"}
+HTTP 500
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/6015866271
+{"error": "error interno"}
+HTTP 500
+[codigo de salida: 0]
+
+$ docker compose -p kit-original logs cierre-api | grep -A 14 'CIE-5003' | tail -n 16
+cierre-api-1  |              ^^^^^^^^^^^^^^^^^^^^^^
+cierre-api-1  |   File "/app/app.py", line 53, in find_member
+cierre-api-1  |     nombre = nom1 + " " + nom2 + " " + ape1 + " " + ape2
+cierre-api-1  |              ~~~~~~~~~~~^~~~~~
+cierre-api-1  | TypeError: can only concatenate str (not "NoneType") to str
+cierre-api-1  | 
+cierre-api-1  | 2026-10-15 02:18:25,230 ERROR [cierre-api] CIE-5003 Error interno consultando afiliado documento=6015866271
+cierre-api-1  | Traceback (most recent call last):
+cierre-api-1  |   File "/app/app.py", line 74, in do_GET
+cierre-api-1  |     member = find_member(documento)
+cierre-api-1  |              ^^^^^^^^^^^^^^^^^^^^^^
+cierre-api-1  |   File "/app/app.py", line 53, in find_member
+cierre-api-1  |     nombre = nom1 + " " + nom2 + " " + ape1 + " " + ape2
+cierre-api-1  |              ~~~~~~~~~~~^~~~~~
+cierre-api-1  | TypeError: can only concatenate str (not "NoneType") to str
+cierre-api-1  | 
+[codigo de salida: 0]
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT nro_doc, nom1, nom2, nom2 IS NULL AS nom2_es_null, ape1, ape2 FROM afi_mae WHERE nro_doc IN ('3756530718', '88121168', '6015866271')"
+  nro_doc   |   nom1    | nom2 | nom2_es_null |  ape1   |    ape2     
+------------+-----------+------+--------------+---------+-------------
+ 88121168   | VALENTINA |      | t            | SANCHEZ | SILVA
+ 3756530718 | CAROLINA  |      | t            | CASTRO  | CASTELLANOS
+ 6015866271 | HERNAN    |      | t            | MOLINA  | RODRIGUEZ
+(3 rows)
+
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/1098765432
+{"documento": "1098765432", "nombre": "JUAN CARLOS PEREZ GOMEZ", "estado": "ACTIVO", "empresa": "EMPRESA ABC"}
+HTTP 200
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/3756530718
+{"documento": "3756530718", "nombre": "CAROLINA CASTRO CASTELLANOS", "estado": "ACTIVO", "empresa": "CONSTRUCTORA SAN LUIS S EN C"}
+HTTP 200
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/88121168
+{"documento": "88121168", "nombre": "VALENTINA SANCHEZ SILVA", "estado": "INACTIVO", "empresa": "AGROPECUARIA LA ESPERANZA S EN C"}
+HTTP 200
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/6015866271
+{"documento": "6015866271", "nombre": "HERNAN MOLINA RODRIGUEZ", "estado": "ACTIVO", "empresa": "CONFECCIONES SANTANDER LTDA"}
+HTTP 200
+[codigo de salida: 0]
+
+$ curl -s -w '\nHTTP %{http_code}\n' http://localhost:8081/afiliados/0000000001
+{"error": "afiliado no encontrado"}
+HTTP 404
+[codigo de salida: 0]
+
+$ docker compose logs cierre-api | grep 'CIE-5003' | wc -l
+0
+[codigo de salida: 0]
+
+$ docker compose exec -T cierre-db psql -U cierre -d cierre -c "SELECT nro_doc, nom1, nom2 IS NULL AS nom2_es_null, ape1, ape2, est_afi FROM afi_mae WHERE nro_doc IN ('3756530718', '88121168', '6015866271')"
+  nro_doc   |   nom1    | nom2_es_null |  ape1   |    ape2     | est_afi 
+------------+-----------+--------------+---------+-------------+---------
+ 88121168   | VALENTINA | t            | SANCHEZ | SILVA       | I
+ 3756530718 | CAROLINA  | t            | CASTRO  | CASTELLANOS | A
+ 6015866271 | HERNAN    | t            | MOLINA  | RODRIGUEZ   | A
+(3 rows)
+
+[codigo de salida: 0]
+

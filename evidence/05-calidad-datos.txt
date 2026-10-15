@@ -1,0 +1,132 @@
+Incidente 5 - Duplicados, sin empresa, huerfanos y codigos invalidos
+Salida real de terminal generada por scripts/evidencias.sh
+Fecha: 2026-10-15 02:17 UTC | Linux 6.8.0-1064-azure | Docker version 28.1.1-1, build 4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1 | Docker Compose version v2.35.1
+
+==== ANTES: kit original (commit 3020dec7), cp .env.example .env y docker compose up -d ====
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT count(*) AS registros, count(DISTINCT nro_doc) AS documentos FROM afi_mae"
+ registros | documentos 
+-----------+------------
+      1520 |       1500
+(1 row)
+
+[codigo de salida: 0]
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT nro_doc, count(*) FROM afi_mae GROUP BY nro_doc HAVING count(*) > 1 ORDER BY nro_doc LIMIT 5"
+  nro_doc   | count 
+------------+-------
+ 1020751549 |     2
+ 1040982710 |     2
+ 1048335414 |     2
+ 1341837102 |     2
+ 1344766047 |     2
+(5 rows)
+
+[codigo de salida: 0]
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT est_afi, count(*) FROM afi_mae GROUP BY est_afi ORDER BY est_afi"
+ est_afi | count 
+---------+-------
+ 9       |     3
+ A       |  1225
+ I       |   281
+ P       |     4
+ X       |     2
+ Z       |     5
+(6 rows)
+
+[codigo de salida: 0]
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT count(*) AS activos_sin_empresa FROM afi_mae a LEFT JOIN empresa e ON e.cod_emp = a.cod_emp WHERE a.est_afi = 'A' AND e.cod_emp IS NULL"
+ activos_sin_empresa 
+---------------------
+                  18
+(1 row)
+
+[codigo de salida: 0]
+
+$ docker compose -p kit-original exec -T cierre-db psql -U cierre -d cierre -c "SELECT count(*) AS beneficiarios_huerfanos FROM afi_ben b WHERE NOT EXISTS (SELECT 1 FROM afi_mae a WHERE a.nro_doc = b.nro_doc_afi)"
+ beneficiarios_huerfanos 
+-------------------------
+                      15
+(1 row)
+
+[codigo de salida: 0]
+
+==== DESPUES: repositorio corregido, ./reset.sh (docker compose down -v + up -d --build) ====
+
+$ docker compose exec -T cierre-db psql -U cierre -d cierre -c "SELECT count(*) AS registros, count(DISTINCT nro_doc) AS documentos FROM afi_mae"
+ registros | documentos 
+-----------+------------
+      1500 |       1500
+(1 row)
+
+[codigo de salida: 0]
+
+$ docker compose exec -T cierre-db psql -U cierre -d cierre -c "SELECT tipo, count(*) FROM correcciones GROUP BY tipo ORDER BY tipo"
+        tipo         | count 
+---------------------+-------
+ DUPLICADO_ELIMINADO |    20
+ FECHA_NORMALIZADA   |    18
+(2 rows)
+
+[codigo de salida: 0]
+
+$ docker compose exec -T cierre-db psql -U cierre -d cierre -c "SELECT tipo, count(*) FROM pendientes_calidad GROUP BY tipo ORDER BY tipo"
+         tipo          | count 
+-----------------------+-------
+ BENEFICIARIO_HUERFANO |    15
+ CODIGO_INVALIDO       |    14
+ FECHA_INVALIDA        |    12
+ SIN_EMPRESA           |    18
+(4 rows)
+
+[codigo de salida: 0]
+
+$ awk -F, 'NR > 1 { visto[$1]++ } END { for (d in visto) if (visto[d] > 1) n++; print n " documentos repetidos en data/AFI_MAE.csv" }' data/AFI_MAE.csv
+20 documentos repetidos en data/AFI_MAE.csv
+[codigo de salida: 0]
+
+$ cut -d, -f2 output/excepciones.csv | sort | uniq -c
+     15 BENEFICIARIO_HUERFANO
+     14 CODIGO_INVALIDO
+     25 CRUCE_NO_COINCIDE
+     20 DUPLICADO
+     12 FECHA_INVALIDA
+     18 SIN_EMPRESA
+      1 tipo
+[codigo de salida: 0]
+
+$ grep -E ',(DUPLICADO|SIN_EMPRESA|BENEFICIARIO_HUERFANO|CODIGO_INVALIDO),' output/excepciones.csv | head -n 8
+3753924849,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 8 150); se conserva la primera aparicion
+1366075689,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 15 1499); se conserva la primera aparicion
+1367901463,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 98 946); se conserva la primera aparicion
+1048335414,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 106 1480); se conserva la primera aparicion
+1344766047,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 122 472); se conserva la primera aparicion
+88724664,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 144 960); se conserva la primera aparicion
+1020751549,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 164 167); se conserva la primera aparicion
+6035736385,DUPLICADO,aparece 2 veces en AFI_MAE (lineas 177 450); se conserva la primera aparicion
+[codigo de salida: 0]
+
+$ ./scripts/corregir_base.sh
+>> Aplicando db/init/03_correcciones.sql
+psql:/docker-entrypoint-initdb.d/03_correcciones.sql:12: NOTICE:  column "id_carga" of relation "afi_mae" already exists, skipping
+psql:/docker-entrypoint-initdb.d/03_correcciones.sql:22: NOTICE:  relation "correcciones" already exists, skipping
+>> Correcciones registradas
+        tipo         | count 
+---------------------+-------
+ DUPLICADO_ELIMINADO |    20
+ FECHA_NORMALIZADA   |    18
+(2 rows)
+
+>> Pendientes que reporta el cierre en excepciones.csv
+         tipo          | count 
+-----------------------+-------
+ BENEFICIARIO_HUERFANO |    15
+ CODIGO_INVALIDO       |    14
+ FECHA_INVALIDA        |    12
+ SIN_EMPRESA           |    18
+(4 rows)
+
+[codigo de salida: 0]
+
